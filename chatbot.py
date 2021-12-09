@@ -1,7 +1,7 @@
 import json
 import time
 from spade.agent import Agent
-from spade.behaviour import OneShotBehaviour
+from spade.behaviour import CyclicBehaviour, OneShotBehaviour
 from spade.message import Message
 from spade.template import Template
 import pandas as pd
@@ -16,10 +16,10 @@ data = json.load(f)
 class SenderAgent(Agent):
     class InformBehav(OneShotBehaviour):
         async def run(self):
-
+            
             # Message
             print("InformBehav running")
-            msg = Message(to=data['spade_intro']['username'])     # Instantiate the message
+            msg = Message(to=data['spade_chatbot_sender']['username'])     # Instantiate the message
             msg.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
             print("Good morning human!! My name is David. What do you want to know today?")
             #print("Buenos días. Puede hacerme las siguientes preguntas:\n")
@@ -57,7 +57,22 @@ class SenderAgent(Agent):
         self.add_behaviour(b)
 
 class ReceiverAgent(Agent):
-    class RecvBehav(OneShotBehaviour):
+    class TimeBehav(CyclicBehaviour):
+        async def setup(self):
+            print("timeBehav started")
+            tb = self.TimeBehav()
+            self.add_behaviour(tb)
+    class PersonInfoBehav(CyclicBehaviour):
+        async def setup(self):
+            print("PersonInfoBehav started")
+            pib = self.PersonInfoBehav()
+            self.add_behaviour(pib)
+    class CreateFileBehav(CyclicBehaviour):
+        async def setup(self):
+            print("timeBehav started")
+            cfb = self.CreateFileBehav()
+            self.add_behaviour(cfb)
+    class EndAgentsBehav(CyclicBehaviour):
         async def run(self):
             terminate = True
             while(terminate):
@@ -96,6 +111,30 @@ class ReceiverAgent(Agent):
         print("ReceiverAgent started")
         b = self.RecvBehav()
 
+        timeTemplate = Template()
+        personInfoTemplate = Template()
+        createFileTemplate = Template()
+        endAgentsTemplate = Template()
+
+        # Sender name to check security
+        # Performative to make consistent with FIPA-ACL
+        # Ontology to different functionalities
+        timeTemplate.sender = data['spade_chatbot_sender']['username']
+        timeTemplate.set_metadata("performative", "query")
+        timeTemplate.set_metadata("ontology", "time")
+        
+        personInfoTemplate.sender = data['spade_chatbot_sender']['username']
+        personInfoTemplate.set_metadata("performative", "query")
+        personInfoTemplate.set_metadata("ontology", "personInfor")
+        
+        createFileTemplate.sender = data['spade_chatbot_sender']['username']
+        createFileTemplate.set_metadata("performative", "request")
+        createFileTemplate.set_metadata("ontology", "createFile")
+
+        endAgentsTemplate.sender = data['spade_chatbot_sender']['username']
+        endAgentsTemplate.set_metadata("performative", "request")
+        endAgentsTemplate.set_metadata("ontology", "endAgents")
+
         # Msg Template
         template = Template()
         template.set_metadata("performative", "inform")
@@ -109,12 +148,12 @@ def main():
     
     # Create the agent
     print("Creating Agents ... ")
-    receiveragent = ReceiverAgent(data['spade_intro']['username'], 
-                            data['spade_intro']['password'])
+    receiveragent = ReceiverAgent(data['spade_chatbot_receiver']['username'], 
+                            data['spade_chatbot_receiver']['password'])
     future = receiveragent.start()
     future.result()
-    senderagent = SenderAgent(data['spade_intro_2']['username'], 
-                            data['spade_intro_2']['password'])
+    senderagent = SenderAgent(data['spade_chatbot_sender']['username'], 
+                            data['spade_chatbot_sender']['password'])
     senderagent.start()
     
     while receiveragent.is_alive():
