@@ -8,6 +8,7 @@
 import json
 import os
 import time
+from googletrans.client import Translator
 from spade.agent import Agent
 from spade.behaviour import OneShotBehaviour
 from spade.message import Message
@@ -21,12 +22,11 @@ import requests
 f = open('credentials.json',)
 data = json.load(f)
 
-class SenderAgent(Agent):
-    class InformBehav(OneShotBehaviour):
+class User(Agent):
+    class UserBehav(OneShotBehaviour):
         async def run(self):
 
             # Message
-            print("InformBehav running")
             print("Good morning human!! My name is David. What do you want to know today?")
             
             #msg.body = input()                      # Set the message content
@@ -34,24 +34,22 @@ class SenderAgent(Agent):
             msg.set_metadata("performative", "request")     # Set the "inform" FIPA performative
             terminate = True
             while(terminate):
+                print("You say: ", end="")
                 msg.body = input()
                 #msg.body = "What time is it?"
                 #msg.body = "Create file holo"
                 #msg.body = "Tell me about Elon Musk"
                 #msg.body = "Bye"
-
-                if (msg.body.find("Bye") != -1):
-                    terminate = False
                 await self.send(msg)
-                print("Message sent!")
 
                 reply = await self.receive(timeout=10)
                 if (reply):
-                    if (reply.body() == "Bye"):
+                    print("Bot say: {}".format(reply.body))
+                    if (reply.body.find("Bye") != -1):
                         self.kill(exit_code=10)
-                    print("(Emisor) Message received with content: \n{}".format(reply.body))
+                else:
+                    print("Bot say: An error has occurred")
             # stop agent from behaviour
-            print("Sender")
             await self.agent.stop()
 
     async def setup(self):
@@ -60,19 +58,17 @@ class SenderAgent(Agent):
         template = Template()
         template.set_metadata("performative", "inform")
 
-        b = self.InformBehav()
+        b = self.UserBehav()
         self.add_behaviour(b, template)
 
-class ReceiverAgent(Agent):
-    class RecvBehav(OneShotBehaviour):
+class Chatbot(Agent):
+    class ChatbotBehav(OneShotBehaviour):
         async def run(self):
             terminate = True
             while(terminate):
-                print("RecvBehav running")
 
-                msg = await self.receive(timeout = 30) # wait for a message for 10 seconds
+                msg = await self.receive(timeout=10) # wait for a message for 10 seconds
                 if msg:
-                    print("Message received with content: {}".format(msg.body))
                     if (msg.body == "What time is it?"):
                         self.agent.add_behaviour(self.agent.TimeBehav())
                         
@@ -81,13 +77,17 @@ class ReceiverAgent(Agent):
                         
                     elif (msg.body.find("Tell me about ") != -1):
                         self.agent.add_behaviour(self.agent.PersonBehav(msg.body))
+                    
+                    elif (msg.body.find("How can I say that on Spanish: ") != -1):
+                        self.agent.add_behaviour(self.agent.TranslatorBehav(msg.body))
 
                     elif (msg.body.find("Bye") != -1):
                         self.agent.add_behaviour(self.agent.EndBehav())
                         terminate = False
+                    else:
+                        self.agent.add_behaviour(self.agent.OtherBehav())
                 else:
-                    print("Did not received any message after 30 seconds")
-            print("Receiver")
+                    print("Bot say: You've been thinking for a minute, are you okay?")
             # stop agent from behaviour
             await self.agent.stop()
 
@@ -110,10 +110,13 @@ class ReceiverAgent(Agent):
             reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
 
             fileName = self.str.split("Create file ")[1]
-            if not os.path.exists(fileName):
+            if os.path.exists(fileName):
+                reply.body = "Fille " + fileName + " already exists."
+            else:
                 f = open(fileName, "x")
                 f.close()
-            reply.body = "Created"
+                reply.body = "Fille " + fileName + " has been created."
+            
             await self.send(reply)
 
     class PersonBehav(OneShotBehaviour):
@@ -128,14 +131,29 @@ class ReceiverAgent(Agent):
 
             name = self.str.split("Tell me about ")[1]
             formatedName = name.replace(" ", "_")
-            #print("Sale: " + formatedName)
             page = requests.get('https://es.wikipedia.org/wiki/' + formatedName)
             html_soup = BeautifulSoup(page.content, 'html.parser')
 
             panel = html_soup.find('div',{'id' : 'mw-content-text'})
             parrafo = panel.find('p').text
-            reply.body = parrafo + '\n'
+            reply.body = parrafo
 
+            await self.send(reply)
+
+    class TranslatorBehav(OneShotBehaviour):
+
+        def __init__(self, body):
+            super().__init__()
+            self.str = body
+
+        async def run(self):
+            reply = Message(to=data['spade_chatbot_sender']['username'])     # Instantiate the message
+            reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
+
+            translator = Translator()
+            noTranslateText = self.str.split("How can I say that on Spanish: ")[1]
+            translateText = translator.translate(noTranslateText, src = 'en', dest = 'es')
+            reply.body = translateText.text
             await self.send(reply)
     
     class EndBehav(OneShotBehaviour):
@@ -146,9 +164,16 @@ class ReceiverAgent(Agent):
             await self.send(reply)
             self.kill(exit_code=10)
 
+    class OtherBehav(OneShotBehaviour):
+        async def run(self):
+            reply = Message(to=data['spade_chatbot_sender']['username'])     # Instantiate the message
+            reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
+            reply.body = "I have no answer to that."
+            await self.send(reply)
+
     async def setup(self):
-        print("ReceiverAgent started")
-        b = self.RecvBehav()
+        print("Agent "+str(self.jid)+ " started")
+        b = self.ChatbotBehav()
 
         # Msg Template
         template = Template()
@@ -163,20 +188,20 @@ def main():
     
     # Create the agent
     print("Creating Agents ... ")
-    receiveragent = ReceiverAgent(data['spade_chatbot_receiver']['username'], 
+    chatbotAgent = Chatbot(data['spade_chatbot_receiver']['username'], 
                             data['spade_chatbot_receiver']['password'])
-    future = receiveragent.start()
+    future = chatbotAgent.start()
     future.result()
-    senderagent = SenderAgent(data['spade_chatbot_sender']['username'], 
+    userAgent = User(data['spade_chatbot_sender']['username'], 
                             data['spade_chatbot_sender']['password'])
-    senderagent.start()
+    userAgent.start()
     
-    while receiveragent.is_alive():
+    while chatbotAgent.is_alive():
         try:
             time.sleep(1)
         except KeyboardInterrupt:
-            senderagent.stop()
-            receiveragent.stop()
+            userAgent.stop()
+            chatbotAgent.stop()
             break
     print("Agents finished")
 
