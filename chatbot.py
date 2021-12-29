@@ -7,53 +7,57 @@
 
 import json
 import os
-import time
+import requests
+import logging
+
 from googletrans.client import Translator
 from spade.agent import Agent
-from spade.behaviour import OneShotBehaviour
+from spade.behaviour import CyclicBehaviour, OneShotBehaviour
 from spade.message import Message
 from spade.template import Template
-import pandas as pd
-from time import gmtime, strftime
+from time import localtime, sleep, strftime
 from bs4 import BeautifulSoup
-import requests
 
 # Load the json file with the crendentials
 f = open('credentials.json',)
 data = json.load(f)
 
 class User(Agent):
-    class UserBehav(OneShotBehaviour):
-        async def run(self):
-
+    class UserBehav(CyclicBehaviour):
+        async def on_start(self):
+            logging.info('UserBehav running')
             # Message
-            print("Good morning human!! My name is David. What do you want to know today?")
+            print("Bot say: Good morning human!! My name is David. What do you want to do today?")
+        
+        async def run(self):
             
-            #msg.body = input()                      # Set the message content
             msg = Message(to=data['spade_chatbot_receiver']['username'])     # Instantiate the message
             msg.set_metadata("performative", "request")     # Set the "inform" FIPA performative
-            terminate = True
-            while(terminate):
-                print("You say: ", end="")
-                msg.body = input()
-                #msg.body = "What time is it?"
-                #msg.body = "Create file holo"
-                #msg.body = "Tell me about Elon Musk"
-                #msg.body = "Bye"
-                await self.send(msg)
+            
+            print("You say: ", end="")
+            msg.body = input()
+            
+            await self.send(msg)
 
-                reply = await self.receive(timeout=10)
-                if (reply):
-                    print("Bot say: {}".format(reply.body))
-                    if (reply.body.find("Bye") != -1):
-                        self.kill(exit_code=10)
-                else:
-                    print("Bot say: An error has occurred")
-            # stop agent from behaviour
+            logging.info('Message sent!')
+            
+            reply = await self.receive(timeout=10)
+            
+            logging.info(f'(User) Message received with content: {reply.body}')
+            
+            if (reply):
+                print("Bot say: {}".format(reply.body))
+                if (reply.body.find("Bye") != -1 and reply.body.find("-") == -1):
+                    logging.info("Terminate User")
+                    self.kill(exit_code=10)
+            else:
+                print("Bot say: An error has occurred")
+
+        async def on_end(self):
             await self.agent.stop()
 
     async def setup(self):
-        print("Agent "+str(self.jid)+ " started")
+        logging.info(f'Agent {str(self.jid)} started')
 
         template = Template()
         template.set_metadata("performative", "inform")
@@ -62,40 +66,42 @@ class User(Agent):
         self.add_behaviour(b, template)
 
 class Chatbot(Agent):
-    class ChatbotBehav(OneShotBehaviour):
+    class ChatbotBehav(CyclicBehaviour):
+
+        async def on_start(self):
+            logging.info('ChatbotBehav running')
+
         async def run(self):
-            terminate = True
-            while(terminate):
-
-                msg = await self.receive(timeout=10) # wait for a message for 10 seconds
-                if msg:
-                    if (msg.body == "What time is it?"):
-                        self.agent.add_behaviour(self.agent.TimeBehav())
-                        
-                    elif (msg.body.find("Create file ") != -1):
-                        self.agent.add_behaviour(self.agent.CreateFileBehav(msg.body))
-                        
-                    elif (msg.body.find("Tell me about ") != -1):
-                        self.agent.add_behaviour(self.agent.PersonBehav(msg.body))
+            msg = await self.receive(timeout=60) # wait for a message for 10 seconds
+            if msg:
+                logging.info(f'(Chatbot) Message received with content: {msg.body}')
+                if (msg.body == "What time is it?"):
+                    self.agent.add_behaviour(self.agent.TimeBehav())
                     
-                    elif (msg.body.find("How can I say that on Spanish: ") != -1):
-                        self.agent.add_behaviour(self.agent.TranslatorBehav(msg.body))
+                elif (msg.body.find("Create file ") != -1):
+                    self.agent.add_behaviour(self.agent.CreateFileBehav(msg.body))
+                    
+                elif (msg.body.find("Tell me about ") != -1):
+                    self.agent.add_behaviour(self.agent.PersonBehav(msg.body))
+                
+                elif (msg.body.find("How can I say that on Spanish: ") != -1):
+                    self.agent.add_behaviour(self.agent.TranslatorBehav(msg.body))
 
-                    elif (msg.body.find("Bye") != -1):
-                        self.agent.add_behaviour(self.agent.EndBehav())
-                        terminate = False
-                    else:
-                        self.agent.add_behaviour(self.agent.OtherBehav())
+                elif (msg.body.find("Bye") != -1):
+                    self.agent.add_behaviour(self.agent.EndBehav())
+
                 else:
-                    print("Bot say: You've been thinking for a minute, are you okay?")
-            # stop agent from behaviour
-            await self.agent.stop()
+                    self.agent.add_behaviour(self.agent.OptionsBehav())
+            else:
+                print("Bot say: You've been thinking for a minute, are you okay?")
 
     class TimeBehav(OneShotBehaviour):
         async def run(self):
+            logging.info('TimeBehav running')
+
             reply = Message(to=data['spade_chatbot_sender']['username'])     # Instantiate the message
             reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
-            timeStr = strftime("Today is %d %B, %Y, it is %A and it is %H:%M:%S", gmtime())
+            timeStr = strftime("Today is %d %B, %Y, it is %A and it is %H:%M:%S", localtime())
             reply.body = timeStr
             await self.send(reply)
 
@@ -106,6 +112,8 @@ class Chatbot(Agent):
             self.str = body
 
         async def run(self):
+            logging.info('CreateFileBehav running')
+
             reply = Message(to=data['spade_chatbot_sender']['username'])     # Instantiate the message
             reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
 
@@ -126,20 +134,30 @@ class Chatbot(Agent):
             self.str = body
 
         async def run(self):
+            logging.info('PersonBehav running')
+
             reply = Message(to=data['spade_chatbot_sender']['username'])     # Instantiate the message
             reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
 
             name = self.str.split("Tell me about ")[1]
             formatedName = name.replace(" ", "_")
-            page = requests.get('https://es.wikipedia.org/wiki/' + formatedName)
-            html_soup = BeautifulSoup(page.content, 'html.parser')
 
-            panel = html_soup.find('div',{'id' : 'mw-content-text'})
-            parrafo = panel.find('p').text
-            reply.body = parrafo
+            logging.info("Formatted name: " + formatedName)
+
+            try:
+                page = requests.get('https://en.wikipedia.org/wiki/' + formatedName)
+                html_soup = BeautifulSoup(page.content, 'html.parser')
+                panel = html_soup.find('div',{'id' : 'mw-content-text'})
+                internalPanel = panel.find('div',{'class':'mw-parser-output'})  
+                paragraph = internalPanel.findChildren("p", recursive=False)[1].text # Second p instance on English Wikipedia
+
+                reply.body = paragraph
+            
+            except:
+                reply.body = "It has not been possible to find information on this person."
 
             await self.send(reply)
-
+            
     class TranslatorBehav(OneShotBehaviour):
 
         def __init__(self, body):
@@ -147,32 +165,48 @@ class Chatbot(Agent):
             self.str = body
 
         async def run(self):
+            logging.info('TranslatorBehav running')
+
             reply = Message(to=data['spade_chatbot_sender']['username'])     # Instantiate the message
             reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
 
             translator = Translator()
             noTranslateText = self.str.split("How can I say that on Spanish: ")[1]
+
+            logging.info("Text before translate: " + noTranslateText)
+
             translateText = translator.translate(noTranslateText, src = 'en', dest = 'es')
             reply.body = translateText.text
             await self.send(reply)
     
     class EndBehav(OneShotBehaviour):
         async def run(self):
-            reply = Message(to=data['spade_chatbot_sender']['username'])     # Instantiate the message
-            reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
-            reply.body = "Bye"
-            await self.send(reply)
-            self.kill(exit_code=10)
+            logging.info('EndBehav running')
 
-    class OtherBehav(OneShotBehaviour):
-        async def run(self):
             reply = Message(to=data['spade_chatbot_sender']['username'])     # Instantiate the message
             reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
-            reply.body = "I have no answer to that."
+            reply.body = "Bye human. It has been a pleasure talking to you."
+            await self.send(reply)
+            logging.info("Terminate Chatbot")
+            await self.agent.stop()
+
+    class OptionsBehav(OneShotBehaviour):
+        async def run(self):
+            logging.info('OptionsBehav running')
+
+            reply = Message(to=data['spade_chatbot_sender']['username'])     # Instantiate the message
+            reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
+            options = "I have no answer to that. But you can try this functionalities: \n" 
+            options += "- What time is it? \n" 
+            options += "- Create file <file_name> \n"
+            options += "- Tell me about <person_name> \n"
+            options += "- How can I say that on Spanish: <sentence_to_translate> \n"
+            options += "- Bye"
+            reply.body = options
             await self.send(reply)
 
     async def setup(self):
-        print("Agent "+str(self.jid)+ " started")
+        logging.info(f'Agent {str(self.jid)} started')
         b = self.ChatbotBehav()
 
         # Msg Template
@@ -185,9 +219,10 @@ class Chatbot(Agent):
 
 
 def main():
-    
+    # Change logging level to check execution
+    #logging.getLogger().setLevel(logging.INFO)
     # Create the agent
-    print("Creating Agents ... ")
+    logging.info('Creating Agents ... ')
     chatbotAgent = Chatbot(data['spade_chatbot_receiver']['username'], 
                             data['spade_chatbot_receiver']['password'])
     future = chatbotAgent.start()
@@ -198,12 +233,12 @@ def main():
     
     while chatbotAgent.is_alive():
         try:
-            time.sleep(1)
+            sleep(1)
         except KeyboardInterrupt:
             userAgent.stop()
             chatbotAgent.stop()
             break
-    print("Agents finished")
+    logging.info('Agents finished')
 
 if __name__ == "__main__":
     main()
