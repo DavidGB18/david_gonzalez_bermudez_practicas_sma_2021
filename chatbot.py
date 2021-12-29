@@ -9,6 +9,7 @@ import json
 import os
 import requests
 import logging
+import re
 
 from googletrans.client import Translator
 from spade.agent import Agent
@@ -72,28 +73,28 @@ class Chatbot(Agent):
             logging.info('ChatbotBehav running')
 
         async def run(self):
-            msg = await self.receive(timeout=60) # wait for a message for 10 seconds
+            msg = await self.receive(timeout=30) # wait for a message for 10 seconds
             if msg:
                 logging.info(f'(Chatbot) Message received with content: {msg.body}')
-                if (msg.body == "What time is it?"):
-                    self.agent.add_behaviour(self.agent.TimeBehav())
-                    
-                elif (msg.body.find("Create file ") != -1):
-                    self.agent.add_behaviour(self.agent.CreateFileBehav(msg.body))
-                    
-                elif (msg.body.find("Tell me about ") != -1):
-                    self.agent.add_behaviour(self.agent.PersonBehav(msg.body))
-                
-                elif (msg.body.find("How can I say that on Spanish: ") != -1):
+                if (re.search(r"^(H|h)ow[a-zA-Z_ ]*say[a-zA-Z_ ]*(S|s)panish:\s", msg.body)):
                     self.agent.add_behaviour(self.agent.TranslatorBehav(msg.body))
 
-                elif (msg.body.find("Bye") != -1):
+                elif (re.search(r"^(W|w)hat[a-zA-Z_ ]*time[a-zA-Z_ ]*?", msg.body)):
+                    self.agent.add_behaviour(self.agent.TimeBehav())
+                    
+                elif (re.search(r"^(C|c)reate\s*file\s", msg.body)):
+                    self.agent.add_behaviour(self.agent.CreateFileBehav(msg.body))
+                    
+                elif (re.search(r"^(T|t)ell\s*(me|)\s*about\s", msg.body)):
+                    self.agent.add_behaviour(self.agent.PersonBehav(msg.body))
+
+                elif (re.search(r"^((B|b)ye|(S|s)ee\s*you|(E|e)xit)", msg.body)):
                     self.agent.add_behaviour(self.agent.EndBehav())
 
                 else:
                     self.agent.add_behaviour(self.agent.OptionsBehav())
             else:
-                print("Bot say: You've been thinking for a minute, are you okay?")
+                print("Bot say: You've been thinking for 30 seconds, are you okay?")
 
     class TimeBehav(OneShotBehaviour):
         async def run(self):
@@ -117,7 +118,7 @@ class Chatbot(Agent):
             reply = Message(to=data['spade_chatbot_sender']['username'])     # Instantiate the message
             reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
 
-            fileName = self.str.split("Create file ")[1]
+            fileName = self.str.split("file ")[1]
             if os.path.exists(fileName):
                 reply.body = "Fille " + fileName + " already exists."
             else:
@@ -139,7 +140,7 @@ class Chatbot(Agent):
             reply = Message(to=data['spade_chatbot_sender']['username'])     # Instantiate the message
             reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
 
-            name = self.str.split("Tell me about ")[1]
+            name = self.str.split("about ")[1]
             formatedName = name.replace(" ", "_")
 
             logging.info("Formatted name: " + formatedName)
@@ -171,7 +172,7 @@ class Chatbot(Agent):
             reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
 
             translator = Translator()
-            noTranslateText = self.str.split("How can I say that on Spanish: ")[1]
+            noTranslateText = self.str.split(": ")[1]
 
             logging.info("Text before translate: " + noTranslateText)
 
