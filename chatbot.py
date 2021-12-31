@@ -11,7 +11,6 @@ import requests
 import logging
 import re
 import psycopg2
-from sqlalchemy.sql.expression import null
 
 from googletrans.client import Translator
 from spade.agent import Agent
