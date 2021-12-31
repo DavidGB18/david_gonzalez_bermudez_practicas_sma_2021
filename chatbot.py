@@ -10,6 +10,8 @@ import os
 import requests
 import logging
 import re
+import psycopg2
+from sqlalchemy.sql.expression import null
 
 from googletrans.client import Translator
 from spade.agent import Agent
@@ -67,22 +69,32 @@ class User(Agent):
         self.add_behaviour(b, template)
 
 class Chatbot(Agent):
+
     class ChatbotBehav(CyclicBehaviour):
 
         async def on_start(self):
             logging.info('ChatbotBehav running')
+            db_conn = psycopg2.connect(host='host.docker.internal', port='5432', 
+            dbname='chatbot_postgres_db', user='sma', password='sma')
+            db_cursor = db_conn.cursor()
+            db_cursor.execute("SELECT web FROM webs WHERE id = 1;")
+            self.agent.pages = db_cursor.fetchall()
+
+            db_cursor = db_conn.cursor()  
+            db_cursor.execute("SELECT regexbehav FROM regularexpressions;")
+            self.agent.regularExpressions = db_cursor.fetchall() 
 
         async def run(self):
             msg = await self.receive(timeout=30) # wait for a message for 10 seconds
             if msg:
                 logging.info(f'(Chatbot) Message received with content: {msg.body}')
-                if (re.search(r"^(H|h)ow[a-zA-Z_ ]*say[a-zA-Z_ ]*(S|s)panish\s+", msg.body)):
+                if (re.search(self.agent.regularExpressions[0][0]), msg.body)):
                     self.agent.add_behaviour(self.agent.TranslatorBehav(msg.body))
 
-                elif (re.search(r"^(H|h)ow\s+much\s+is\s+(\d+['+''*''-''/''**'])+", msg.body)):
+                elif (re.search(r'^(H|h)ow\s+much\s+is\s+(\d+["+""*""-""/""**"])+', msg.body)):
                     self.agent.add_behaviour(self.agent.CalculateBehav(msg.body))
 
-                elif (re.search(r"^(W|w)hat[a-zA-Z_ ]*time[a-zA-Z_ ]*?", msg.body)):
+                elif (re.search(r"^(W|w)hat[a-zA-Z_ ]*time[a-zA-Z_ ]*\?", msg.body)):
                     self.agent.add_behaviour(self.agent.TimeBehav())
                     
                 elif (re.search(r"^(C|c)reate\s+file\s+", msg.body)):
