@@ -88,22 +88,22 @@ class Chatbot(Agent):
             msg = await self.receive(timeout=30) # wait for a message for 10 seconds
             if msg:
                 logging.info(f'(Chatbot) Message received with content: {msg.body}')
-                if (re.search(self.agent.regularExpressions[0][0]), msg.body)):
+                if (re.search(str(self.agent.regularExpressions[0][0]), msg.body)):
                     self.agent.add_behaviour(self.agent.TranslatorBehav(msg.body))
 
-                elif (re.search(r'^(H|h)ow\s+much\s+is\s+(\d+["+""*""-""/""**"])+', msg.body)):
+                elif (re.search(str(self.agent.regularExpressions[1][0]), msg.body)):
                     self.agent.add_behaviour(self.agent.CalculateBehav(msg.body))
 
-                elif (re.search(r"^(W|w)hat[a-zA-Z_ ]*time[a-zA-Z_ ]*\?", msg.body)):
+                elif (re.search(str(self.agent.regularExpressions[3][0]), msg.body)):
                     self.agent.add_behaviour(self.agent.TimeBehav())
                     
-                elif (re.search(r"^(C|c)reate\s+file\s+", msg.body)):
+                elif (re.search(str(self.agent.regularExpressions[4][0]), msg.body)):
                     self.agent.add_behaviour(self.agent.CreateFileBehav(msg.body))
                     
-                elif (re.search(r"^(T|t)ell\s+(me|)\s+about\s+", msg.body)):
+                elif (re.search(str(self.agent.regularExpressions[5][0]), msg.body)):
                     self.agent.add_behaviour(self.agent.PersonBehav(msg.body))
 
-                elif (re.search(r"^((B|b)ye|(S|s)ee\s+you|(E|e)xit)", msg.body)):
+                elif (re.search(str(self.agent.regularExpressions[6][0]), msg.body)):
                     self.agent.add_behaviour(self.agent.EndBehav())
 
                 else:
@@ -133,7 +133,7 @@ class Chatbot(Agent):
             reply = Message(to=data['spade_user']['username'])     # Instantiate the message
             reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
 
-            coincidence = re.search(r"^(C|c)reate\s+file\s+", self.str)
+            coincidence = re.search(str(self.agent.regularExpressions[4][0]), self.str)
             fileName = self.str.split(coincidence.group())[1]
             if os.path.exists(fileName):
                 reply.body = "Fille " + fileName + " already exists."
@@ -156,14 +156,14 @@ class Chatbot(Agent):
             reply = Message(to=data['spade_user']['username'])     # Instantiate the message
             reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
 
-            coincidence = re.search(r"^(T|t)ell\s+(me|)\s+about\s+", self.str)
+            coincidence = re.search(str(self.agent.regularExpressions[5][0]), self.str)
             name = self.str.split(coincidence.group())[1]
             formatedName = name.replace(" ", "_")
 
             logging.info("Formatted name: " + formatedName)
 
             try:
-                page = requests.get('https://en.wikipedia.org/wiki/' + formatedName)
+                page = requests.get(str(self.agent.pages[0][0]) + formatedName)
                 html_soup = BeautifulSoup(page.content, 'html.parser')
                 panel = html_soup.find('div',{'id' : 'mw-content-text'})
                 internalPanel = panel.find('div',{'class':'mw-parser-output'})  
@@ -189,7 +189,7 @@ class Chatbot(Agent):
             reply = Message(to=data['spade_user']['username'])     # Instantiate the message
             reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
 
-            coincidence = re.search(r"^(H|h)ow[a-zA-Z_ ]*say[a-zA-Z_ ]*(S|s)panish\s+", self.str)
+            coincidence = re.search(str(self.agent.regularExpressions[0][0]), self.str)
             noTranslateText = self.str.split(coincidence.group())[1]
             
             logging.info("Text before translate: " + noTranslateText)
@@ -211,7 +211,7 @@ class Chatbot(Agent):
             reply = Message(to=data['spade_user']['username'])     # Instantiate the message
             reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
 
-            coincidence = re.search(r"^(H|h)ow\s*much\s*is\s*", self.str)
+            coincidence = re.search(str(self.agent.regularExpressions[2][0]), self.str)
             noCalcExpression = self.str.split(coincidence.group())[1]
 
             logging.info("Expression before calc: " + noCalcExpression)
@@ -242,7 +242,7 @@ class Chatbot(Agent):
                 "- What time is it? \n" + \
                 "- Create file <file_name> \n" + \
                 "- Tell me about <person_name> \n" + \
-                "- How can I say that on Spanish: <sentence_to_translate> \n" + \
+                "- How can I say that on Spanish <sentence_to_translate> \n" + \
                 "- How much is <numeric_expression_with_+-*/**> \n" + \
                 "- Bye"
             reply.body = options

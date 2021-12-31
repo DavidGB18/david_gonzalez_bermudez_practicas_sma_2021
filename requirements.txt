@@ -1,5 +1,4 @@
 beautifulsoup4==4.10.0
 googletrans==3.1.0a0
-pandas==0.25.3
 requests==2.22.0
 spade==3.2.1
