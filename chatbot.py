@@ -1,9 +1,15 @@
-# Options
-# time
-# info from a person wikipedia
-# create file
-# end agent execution
-# 2 more
+
+'''
+This program is a functional chatbot with a multiagent system. The user is one agent 
+and the chatbot is another agent. The chatbot has the following functions:
+- What time is it?
+- Crate a file
+- Search for information about a specific person
+- Translate a sentence from English to Spanish
+- Calculate the result of an operation with addition, subtraction, multiplication, division and power
+- Terminate the execution of the agents
+- Show the possible functionalities
+'''
 
 import json
 import os
@@ -84,7 +90,7 @@ class Chatbot(Agent):
             self.agent.regularExpressions = db_cursor.fetchall() 
 
         async def run(self):
-            msg = await self.receive(timeout=30) # wait for a message for 10 seconds
+            msg = await self.receive(timeout=30) # wait for a message for 30 seconds and reset
             if msg:
                 logging.info(f'(Chatbot) Message received with content: {msg.body}')
                 if (re.search(str(self.agent.regularExpressions[0][0]), msg.body)):
