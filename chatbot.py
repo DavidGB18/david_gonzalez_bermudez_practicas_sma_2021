@@ -139,7 +139,7 @@ class Chatbot(Agent):
             else:
                 f = open(fileName, "x")
                 f.close()
-                reply.body = "Fille " + fileName + " has been created."
+                reply.body = "File " + fileName + " has been created."
             
             await self.send(reply)
 
@@ -157,6 +157,8 @@ class Chatbot(Agent):
 
             coincidence = re.search(str(self.agent.regularExpressions[5][0]), self.str)
             name = self.str.split(coincidence.group())[1]
+            while(name[-1] == ' '):
+                name = name[:-1]
             formatedName = name.replace(" ", "_")
 
             logging.info("Formatted name: " + formatedName)
@@ -189,7 +191,7 @@ class Chatbot(Agent):
             reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
 
             coincidence = re.search(str(self.agent.regularExpressions[0][0]), self.str)
-            noTranslateText = self.str.split(coincidence.group())[1]
+            noTranslateText = self.str.split(coincidence.group())[0]
             
             logging.info("Text before translate: " + noTranslateText)
 
@@ -241,7 +243,7 @@ class Chatbot(Agent):
                 "- What time is it? \n" + \
                 "- Create file <file_name> \n" + \
                 "- Tell me about <person_name> \n" + \
-                "- How can I say that on Spanish <sentence_to_translate> \n" + \
+                "- <sentence_to_translate> to Spanish\n" + \
                 "- How much is <numeric_expression_with_+-*/**> \n" + \
                 "- Bye"
             reply.body = options
