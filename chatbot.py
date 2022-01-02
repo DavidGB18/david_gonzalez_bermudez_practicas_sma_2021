@@ -29,27 +29,27 @@ from bs4 import BeautifulSoup
 # Load the json file with the crendentials
 f = open('credentials.json',)
 data = json.load(f)
+loggingFileName = "chatbot.log"
 
 class User(Agent):
     class UserBehav(CyclicBehaviour):
         async def on_start(self):
             logging.info('UserBehav running')
-            # Message
             print("Bot say: Good morning human!! My name is David. What do you want to do today?")
         
         async def run(self):
-            
             msg = Message(to=data['spade_chatbot']['username'])     # Instantiate the message
-            msg.set_metadata("performative", "request")     # Set the "inform" FIPA performative
+            msg.set_metadata("performative", "request")     # Set the "request" FIPA performative
             
             print("You say: ", end="")
-            msg.body = input()
+            msg.body = input() # Enter the user text
             
             await self.send(msg)
 
             logging.info('Message sent!')
             
-            reply = await self.receive(timeout=10)
+            # Set a timeout of 10 seconds between sending a message to the chatbot and receiving a reply
+            reply = await self.receive(timeout=10) 
             
             logging.info(f'(User) Message received with content: {reply.body}')
             
@@ -67,8 +67,9 @@ class User(Agent):
     async def setup(self):
         logging.info(f'Agent {str(self.jid)} started')
 
-        template = Template()
-        template.set_metadata("performative", "inform")
+        # Msg template
+        template = Template() 
+        template.set_metadata("performative", "inform") # Filter inform messages
 
         b = self.UserBehav()
         self.add_behaviour(b, template)
@@ -79,13 +80,16 @@ class Chatbot(Agent):
 
         async def on_start(self):
             logging.info('ChatbotBehav running')
+            # Connect with psycopg2 to the docker postgres db container
             db_conn = psycopg2.connect(host='host.docker.internal', port='5432', 
             dbname='chatbot_postgres_db', user='sma', password='sma')
             db_cursor = db_conn.cursor()
+
+            # Search web to use for web scrapping
             db_cursor.execute("SELECT web FROM webs WHERE id = 1;")
             self.agent.pages = db_cursor.fetchall()
 
-            db_cursor = db_conn.cursor()  
+            # Return all regular expressions stored at postgres db
             db_cursor.execute("SELECT regexbehav FROM regularexpressions;")
             self.agent.regularExpressions = db_cursor.fetchall() 
 
@@ -93,22 +97,32 @@ class Chatbot(Agent):
             msg = await self.receive(timeout=30) # wait for a message for 30 seconds and reset
             if msg:
                 logging.info(f'(Chatbot) Message received with content: {msg.body}')
+                # Filter with this regex 'to\s+(S|s)panish$'
                 if (re.search(str(self.agent.regularExpressions[0][0]), msg.body)):
                     self.agent.add_behaviour(self.agent.TranslatorBehav(msg.body))
 
+                # Filter with this regex '^(H|h)ow\s+much\s+is\s+(\d+["+""*""-""/""**"])+'
                 elif (re.search(str(self.agent.regularExpressions[1][0]), msg.body)):
                     self.agent.add_behaviour(self.agent.CalculateBehav(msg.body))
 
+                # Filter with this regex '^(W|w)hat[a-zA-Z_ ]*time[a-zA-Z_ ]*\?'
                 elif (re.search(str(self.agent.regularExpressions[3][0]), msg.body)):
                     self.agent.add_behaviour(self.agent.TimeBehav())
-                    
+                
+                # Filter with this regex '^(C|c)reate\s+file\s+'
                 elif (re.search(str(self.agent.regularExpressions[4][0]), msg.body)):
                     self.agent.add_behaviour(self.agent.CreateFileBehav(msg.body))
-                    
+                
+                # Filter with this regex '^(S|s)how\s+login\s+file\s*'
                 elif (re.search(str(self.agent.regularExpressions[5][0]), msg.body)):
+                    self.agent.add_behaviour(self.agent.ShowLoginBehav())
+                
+                # Filter with this regex '^(T|t)ell\s+(me|)\s+about\s+'
+                elif (re.search(str(self.agent.regularExpressions[6][0]), msg.body)):
                     self.agent.add_behaviour(self.agent.PersonBehav(msg.body))
 
-                elif (re.search(str(self.agent.regularExpressions[6][0]), msg.body)):
+                # Filter with this regex '^((B|b)ye|(S|s)ee\s+you|(E|e)xit)'
+                elif (re.search(str(self.agent.regularExpressions[7][0]), msg.body)):
                     self.agent.add_behaviour(self.agent.EndBehav())
 
                 else:
@@ -122,6 +136,7 @@ class Chatbot(Agent):
 
             reply = Message(to=data['spade_user']['username'])     # Instantiate the message
             reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
+            # Get localtime Europe/Madrid declared on Dockerfile
             timeStr = strftime("Today is %d %B, %Y, it is %A and it is %H:%M:%S", localtime())
             reply.body = timeStr
             await self.send(reply)
@@ -138,14 +153,41 @@ class Chatbot(Agent):
             reply = Message(to=data['spade_user']['username'])     # Instantiate the message
             reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
 
+            # Filter with this regex '^(C|c)reate\s+file\s+'
             coincidence = re.search(str(self.agent.regularExpressions[4][0]), self.str)
+            # Split an take the file name
             fileName = self.str.split(coincidence.group())[1]
+            # If the file already exists it will be communicated and its content will be sent
             if os.path.exists(fileName):
-                reply.body = "Fille " + fileName + " already exists."
+                reply.body = "Fille " + fileName + " already exists. \n" + \
+                    "File content: \n"
+                f = open(fileName, 'r')
+                reply.body += f.read()
+                f.close
+            # If the file does not exist, it will be created
             else:
-                f = open(fileName, "x")
+                f = open(fileName, "w")
+                # A little text will be write inside the file
+                f.write("I am the file " + fileName + " and I have been created by chatbot.")
                 f.close()
                 reply.body = "File " + fileName + " has been created."
+            
+            await self.send(reply)
+
+    class ShowLoginBehav(OneShotBehaviour):
+
+        async def run(self):
+            logging.info('ShowLoginBehav running')
+
+            reply = Message(to=data['spade_user']['username'])     # Instantiate the message
+            reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
+
+            if os.path.exists(loggingFileName):
+                f = open(loggingFileName, 'r')
+                reply.body = f.read()
+                f.close()
+            else:
+                reply.body = "File " + loggingFileName + " does not exist."
             
             await self.send(reply)
 
@@ -161,16 +203,22 @@ class Chatbot(Agent):
             reply = Message(to=data['spade_user']['username'])     # Instantiate the message
             reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
 
-            coincidence = re.search(str(self.agent.regularExpressions[5][0]), self.str)
+            # Filter wiht this regex '^(T|t)ell\s+(me|)\s+about\s+'
+            coincidence = re.search(str(self.agent.regularExpressions[6][0]), self.str)
+            # Split and take person's name
             name = self.str.split(coincidence.group())[1]
+            # Delete spaces at the end of the name
             while(name[-1] == ' '):
                 name = name[:-1]
+            # Replace spaces for '_' to match format with url
             formatedName = name.replace(" ", "_")
 
             logging.info("Formatted name: " + formatedName)
 
             try:
+                # Access to 'https://en.wikipedia.org/wiki/<name>'
                 page = requests.get(str(self.agent.pages[0][0]) + formatedName)
+                # Search first paragraph of the page
                 html_soup = BeautifulSoup(page.content, 'html.parser')
                 panel = html_soup.find('div',{'id' : 'mw-content-text'})
                 internalPanel = panel.find('div',{'class':'mw-parser-output'})  
@@ -179,6 +227,7 @@ class Chatbot(Agent):
                 reply.body = paragraph
             
             except:
+                # Error message, the right person could not be found
                 reply.body = "It has not been possible to find information on this person. " + \
                     "You may have spelt the name wrong. Pay attention to capital letters."
 
@@ -189,19 +238,22 @@ class Chatbot(Agent):
         def __init__(self, body):
             super().__init__()
             self.str = body
-
+        
         async def run(self):
             logging.info('TranslatorBehav running')
 
             reply = Message(to=data['spade_user']['username'])     # Instantiate the message
             reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
 
+            # Filter with this regex 'to\s+(S|s)panish$'
             coincidence = re.search(str(self.agent.regularExpressions[0][0]), self.str)
+            # Catch phrase before the regex match
             noTranslateText = self.str.split(coincidence.group())[0]
             
             logging.info("Text before translate: " + noTranslateText)
 
-            translator = Translator()
+            translator = Translator() # Instantiate Translator
+            # Translate from English to Spanish
             translateText = translator.translate(noTranslateText, src = 'en', dest = 'es')
             reply.body = translateText.text
             await self.send(reply)
@@ -218,11 +270,14 @@ class Chatbot(Agent):
             reply = Message(to=data['spade_user']['username'])     # Instantiate the message
             reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
 
+            # Filter with this regex '^(H|h)ow\s+much\s+is\s+'
             coincidence = re.search(str(self.agent.regularExpressions[2][0]), self.str)
+            # Take mathematical expression after regex
             noCalcExpression = self.str.split(coincidence.group())[1]
 
             logging.info("Expression before calc: " + noCalcExpression)
 
+            # Evaluate expression
             evalExpression = eval(noCalcExpression)
             
             reply.body = str(evalExpression)
@@ -245,9 +300,11 @@ class Chatbot(Agent):
 
             reply = Message(to=data['spade_user']['username'])     # Instantiate the message
             reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
+            # Possible chatbot options
             options = "I have no answer to that. But you can try this functionalities: \n" + \
                 "- What time is it? \n" + \
                 "- Create file <file_name> \n" + \
+                "- Show login file \n" + \
                 "- Tell me about <person_name> \n" + \
                 "- <sentence_to_translate> to Spanish\n" + \
                 "- How much is <numeric_expression_with_+-*/**> \n" + \
@@ -261,16 +318,16 @@ class Chatbot(Agent):
 
         # Msg Template
         template = Template()
-        template.set_metadata("performative", "request")
+        template.set_metadata("performative", "request") # Filter request messages
 
-        # Adding the Behaviour with the template will filter all the msg
         self.add_behaviour(b, template)
 
 
 
 def main():
     # Change logging level to check execution
-    #logging.getLogger().setLevel(logging.INFO)
+    logging.basicConfig(filename='chatbot.log', encoding='utf-8', level=logging.INFO)
+
     # Create the agent
     logging.info('Creating Agents ... ')
     chatbotAgent = Chatbot(data['spade_chatbot']['username'], 
@@ -281,6 +338,7 @@ def main():
                             data['spade_user']['password'])
     userAgent.start()
     
+    # Control chatbotAgent is still alive
     while chatbotAgent.is_alive():
         try:
             sleep(1)
