@@ -15,7 +15,7 @@ CREATE TABLE regularexpressions (
 INSERT INTO webs(id, web) VALUES (1, 'https://en.wikipedia.org/wiki/');
 
 
-INSERT INTO regularexpressions(id, namebehav, regexbehav) VALUES (1, 'TranslatorBehav', 'to\s+(S|s)panish$');
+INSERT INTO regularexpressions(id, namebehav, regexbehav) VALUES (1, 'TranslatorBehav', 'to\s+(S|s)panish\s*$');
 INSERT INTO regularexpressions(id, namebehav, regexbehav) VALUES (2, 'CalculateBehav', '^(H|h)ow\s+much\s+is\s+(\d+["+""*""-""/""**"])+');
 INSERT INTO regularexpressions(id, namebehav, regexbehav) VALUES (3, 'CalculateBehav2', '^(H|h)ow\s+much\s+is\s+');
 INSERT INTO regularexpressions(id, namebehav, regexbehav) VALUES (4, 'TimeBehav', '^(W|w)hat[a-zA-Z_ ]*time[a-zA-Z_ ]*\?');

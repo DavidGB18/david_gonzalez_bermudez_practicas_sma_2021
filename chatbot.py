@@ -90,39 +90,42 @@ class Chatbot(Agent):
             self.agent.pages = db_cursor.fetchall()
 
             # Return all regular expressions stored at postgres db
-            db_cursor.execute("SELECT regexbehav FROM regularexpressions;")
-            self.agent.regularExpressions = db_cursor.fetchall() 
+            db_cursor.execute("SELECT namebehav, regexbehav FROM regularexpressions;")
+            result = db_cursor.fetchall() 
+            self.agent.regularExpressions = {}
+            for namebehav, regex in result:
+                self.agent.regularExpressions[namebehav]  = regex
 
         async def run(self):
             msg = await self.receive(timeout=30) # wait for a message for 30 seconds and reset
             if msg:
                 logging.info(f'(Chatbot) Message received with content: {msg.body}')
                 # Filter with this regex 'to\s+(S|s)panish$'
-                if (re.search(str(self.agent.regularExpressions[0][0]), msg.body)):
+                if (re.search(str(self.agent.regularExpressions.get('TranslatorBehav')), msg.body)):
                     self.agent.add_behaviour(self.agent.TranslatorBehav(msg.body))
 
                 # Filter with this regex '^(H|h)ow\s+much\s+is\s+(\d+["+""*""-""/""**"])+'
-                elif (re.search(str(self.agent.regularExpressions[1][0]), msg.body)):
+                elif (re.search(str(self.agent.regularExpressions.get('CalculateBehav')), msg.body)):
                     self.agent.add_behaviour(self.agent.CalculateBehav(msg.body))
 
                 # Filter with this regex '^(W|w)hat[a-zA-Z_ ]*time[a-zA-Z_ ]*\?'
-                elif (re.search(str(self.agent.regularExpressions[3][0]), msg.body)):
+                elif (re.search(str(self.agent.regularExpressions.get('TimeBehav')), msg.body)):
                     self.agent.add_behaviour(self.agent.TimeBehav())
                 
                 # Filter with this regex '^(C|c)reate\s+file\s+'
-                elif (re.search(str(self.agent.regularExpressions[4][0]), msg.body)):
+                elif (re.search(str(self.agent.regularExpressions.get('CreateFileBehav')), msg.body)):
                     self.agent.add_behaviour(self.agent.CreateFileBehav(msg.body))
                 
                 # Filter with this regex '^(S|s)how\s+login\s+file\s*'
-                elif (re.search(str(self.agent.regularExpressions[5][0]), msg.body)):
+                elif (re.search(str(self.agent.regularExpressions.get('ShowLoginBehav')), msg.body)):
                     self.agent.add_behaviour(self.agent.ShowLoginBehav())
                 
                 # Filter with this regex '^(T|t)ell\s+(me|)\s+about\s+'
-                elif (re.search(str(self.agent.regularExpressions[6][0]), msg.body)):
+                elif (re.search(str(self.agent.regularExpressions.get('PersonBehav')), msg.body)):
                     self.agent.add_behaviour(self.agent.PersonBehav(msg.body))
 
                 # Filter with this regex '^((B|b)ye|(S|s)ee\s+you|(E|e)xit)'
-                elif (re.search(str(self.agent.regularExpressions[7][0]), msg.body)):
+                elif (re.search(str(self.agent.regularExpressions.get('EndBehav')), msg.body)):
                     self.agent.add_behaviour(self.agent.EndBehav())
 
                 else:
@@ -154,7 +157,7 @@ class Chatbot(Agent):
             reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
 
             # Filter with this regex '^(C|c)reate\s+file\s+'
-            coincidence = re.search(str(self.agent.regularExpressions[4][0]), self.str)
+            coincidence = re.search(str(self.agent.regularExpressions.get('CreateFileBehav')), self.str)
             # Split an take the file name
             fileName = self.str.split(coincidence.group())[1]
             # If the file already exists it will be communicated and its content will be sent
@@ -204,7 +207,7 @@ class Chatbot(Agent):
             reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
 
             # Filter wiht this regex '^(T|t)ell\s+(me|)\s+about\s+'
-            coincidence = re.search(str(self.agent.regularExpressions[6][0]), self.str)
+            coincidence = re.search(str(self.agent.regularExpressions.get('PersonBehav')), self.str)
             # Split and take person's name
             name = self.str.split(coincidence.group())[1]
             # Delete spaces at the end of the name
@@ -246,7 +249,7 @@ class Chatbot(Agent):
             reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
 
             # Filter with this regex 'to\s+(S|s)panish$'
-            coincidence = re.search(str(self.agent.regularExpressions[0][0]), self.str)
+            coincidence = re.search(str(self.agent.regularExpressions.get('TranslatorBehav')), self.str)
             # Catch phrase before the regex match
             noTranslateText = self.str.split(coincidence.group())[0]
             
@@ -271,7 +274,7 @@ class Chatbot(Agent):
             reply.set_metadata("performative", "inform")     # Set the "inform" FIPA performative
 
             # Filter with this regex '^(H|h)ow\s+much\s+is\s+'
-            coincidence = re.search(str(self.agent.regularExpressions[2][0]), self.str)
+            coincidence = re.search(str(self.agent.regularExpressions.get('CalculateBehav2')), self.str)
             # Take mathematical expression after regex
             noCalcExpression = self.str.split(coincidence.group())[1]
 
