@@ -22,7 +22,7 @@ docker run -it --rm --name python3 python-image
 ```
 If you want to see created files on your host execute the following command.
 ```
-docker run --mount type=bind,source=<host_directory_path>,target=<container_directory_path> -it --rm --name python3 python-image
+docker run --mount type=bind,source=<host_directory_path>,target=/SistemasMultiagentes -it --rm --name python3 python-image
 ```
 Example:
 ```
