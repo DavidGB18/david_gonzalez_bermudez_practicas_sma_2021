@@ -29,6 +29,10 @@ from bs4 import BeautifulSoup
 # Load the json file with the crendentials
 f = open('credentials.json',)
 data = json.load(f)
+f.close()
+f_db = open('credentials_db.json',)
+credentials_db = json.load(f_db)
+f_db.close()
 loggingFileName = "chatbot.log"
 
 class User(Agent):
@@ -81,8 +85,13 @@ class Chatbot(Agent):
         async def on_start(self):
             logging.info('ChatbotBehav running')
             # Connect with psycopg2 to the docker postgres db container
-            db_conn = psycopg2.connect(host='host.docker.internal', port='5432', 
-            dbname='chatbot_postgres_db', user='sma', password='sma')
+            db_conn = psycopg2.connect(
+                host = credentials_db['chatbot_postgres']['host'], 
+                port = credentials_db['chatbot_postgres']['port'], 
+                dbname = credentials_db['chatbot_postgres']['dbname'], 
+                user = credentials_db['chatbot_postgres']['user'], 
+                password = credentials_db['chatbot_postgres']['password']
+            )
             db_cursor = db_conn.cursor()
 
             # Search web to use for web scrapping
