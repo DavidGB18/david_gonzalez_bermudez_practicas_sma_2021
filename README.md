@@ -26,5 +26,5 @@ docker run --mount type=bind,source=<host_directory_path>,target=/SistemasMultia
 ```
 Example:
 ```
-docker run --mount type=bind,source="C:\Users\david\Documents\Año 4\Cuatrimestre 1\Sistemas multiagentes\david_gonzalez_bermudez_practicas_sma_2021",target=/SistemasMultiagentes -it --rm --name python3 python-image
+docker run --mount type=bind,source="C:\Users\david\Documents\Año 4\Cuatrimestre 1\Sistemas multiagentes\Chatbot_David_Gonzalez_Bermudez\david_gonzalez_bermudez_practicas_sma_2021",target=/SistemasMultiagentes -it --rm --name python3 python-image
 ```

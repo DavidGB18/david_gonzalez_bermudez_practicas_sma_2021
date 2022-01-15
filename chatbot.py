@@ -338,7 +338,7 @@ class Chatbot(Agent):
 
 def main():
     # Change logging level to check execution
-    logging.basicConfig(filename='chatbot.log', encoding='utf-8', level=logging.INFO)
+    logging.basicConfig(filename='chatbot.log', encoding='utf-8', level=logging.INFO, filemode= 'w')
 
     # Create the agent
     logging.info('Creating Agents ... ')
